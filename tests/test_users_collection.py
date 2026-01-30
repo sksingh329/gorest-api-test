@@ -1,5 +1,5 @@
 import logging
-from application.payload.user_payload import create_user_payload, user_create_payload
+from application.payload.user_payload import user_create_payload
 
 
 logger = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ def test_list_user(user_client):
     assert response.status_code == 200
 
 def test_create_user(user_client):
-    payload = create_user_payload(status="inactive")
+    payload = user_create_payload(status="inactive")
 
     response = user_client.create_user(payload=payload)
     response_body = response.json()
