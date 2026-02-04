@@ -3,9 +3,30 @@ import pytest
 import logging
 from core.api.api_client import APIClient
 from application.user_client import UserClient
+from tests.environment_variables import EnvironmentVariables
+from core.config.config_manager import ConfigManager
 
 
-BASE_URL = "https://gorest.co.in/public/v2"
+def pytest_addoption(parser):
+    """Register --env CLI option for pytest."""
+    parser.addoption(
+        "--env",
+        action="store",
+        default="dev",
+        help=f"Environment to run tests against. Options: {', '.join(EnvironmentVariables.get_all_environments())}"
+    )
+
+
+@pytest.fixture(scope="session")
+def environment(request) -> str:
+    """Get selected environment from CLI option."""
+    return request.config.getoption("--env")
+
+
+@pytest.fixture(scope="session")
+def config(environment: str) -> ConfigManager:
+    """Initialize and load configuration for selected environment."""
+    return ConfigManager(env=environment, config_path="config.ini")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -33,11 +54,13 @@ def auth_headers():
     }
 
 @pytest.fixture
-def api_client(auth_headers):
+def api_client(auth_headers, environment, config):
+    base_url = EnvironmentVariables.get_base_url(environment)
     return APIClient(
-        base_url=BASE_URL, 
-        timeout=20,
-        headers=auth_headers
+        base_url=base_url, 
+        timeout=config.get_timeout(),
+        headers=auth_headers,
+        config=config
     )
 
 @pytest.fixture
