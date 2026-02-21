@@ -1,10 +1,15 @@
 import os
 import pytest
 import logging
+from dotenv import load_dotenv
 from core.api.api_client import APIClient
 from application.user_client import UserClient
 from tests.environment_variables import EnvironmentVariables
-from core.config.config_manager import ConfigManager
+
+# Load .env file at import time so env vars are available to all fixtures.
+# Existing OS env vars take precedence (override=False), making CI secrets
+# automatically win over local .env values.
+load_dotenv(override=False)
 
 
 def pytest_addoption(parser):
@@ -21,12 +26,6 @@ def pytest_addoption(parser):
 def environment(request) -> str:
     """Get selected environment from CLI option."""
     return request.config.getoption("--env")
-
-
-@pytest.fixture(scope="session")
-def config(environment: str) -> ConfigManager:
-    """Initialize and load configuration for selected environment."""
-    return ConfigManager(env=environment, config_path="config.ini")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -47,20 +46,20 @@ def configure_logging():
     logging.info("=== Test session finished ===")
 
 @pytest.fixture(scope="session")
-def auth_headers():
-    token = os.getenv("API_TOKEN")
+def auth_headers(environment: str) -> dict:
+    """Build Authorization headers using the token for the active environment."""
+    token = EnvironmentVariables.get_api_token(environment)
     return {
         "Authorization": f"Bearer {token}"
     }
 
 @pytest.fixture
-def api_client(auth_headers, environment, config):
+def api_client(auth_headers, environment):
     base_url = EnvironmentVariables.get_base_url(environment)
     return APIClient(
         base_url=base_url, 
-        timeout=config.get_timeout(),
-        headers=auth_headers,
-        config=config
+        timeout=20,
+        headers=auth_headers
     )
 
 @pytest.fixture

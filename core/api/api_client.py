@@ -1,11 +1,11 @@
 import requests
 from typing import Optional, Any, Dict
 from core.utils.http_logger import log_request, log_response
-from core.http.http_adapter import HTTPRetryAdapter
-from core.config.config_manager import ConfigManager
+from core.retry.retry_handler import RetryHandler
+from core.retry.retry_config import DEFAULT_RETRY_CONFIG
 
 class APIClient:
-    def __init__(self, base_url: str, timeout: int = 30, headers: Optional[Dict[str, str]] = None, config: Optional[ConfigManager] = None):
+    def __init__(self, base_url: str, timeout: int = 30, headers: Optional[Dict[str, str]] = None):
         """
         Initialize API Client with session-based HTTP communication.
         
@@ -13,25 +13,19 @@ class APIClient:
             base_url: Base URL for API requests
             timeout: Request timeout in seconds
             headers: Default headers to include in all requests
-            config: ConfigManager instance with retry/timeout settings
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.headers = headers or {}
-        self.config = config
         
-        # Initialize session for connection pooling and future adapter support
+        # Initialize session for connection pooling
         self.session = requests.Session()
         
-        # Mount HTTPAdapter with retry strategy if config is provided and retry is enabled
-        if config:
-            adapter = HTTPRetryAdapter.create_adapter(config)
-            if adapter:
-                self.session.mount("https://", adapter)
-                self.session.mount("http://", adapter)
+        # Initialize retry handler with default config
+        self.retry_handler = RetryHandler(DEFAULT_RETRY_CONFIG)
 
     def get(self, path: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, Any]] = None) -> requests.Response:
-        """Execute GET request."""
+        """Execute GET request with automatic retry."""
         url = f"{self.base_url}/{path.lstrip('/')}"
         final_headers = {**self.headers, **(headers or {})}
 
@@ -42,8 +36,9 @@ class APIClient:
             headers=final_headers,
         )
 
-        response = self.session.get(
-            url, 
+        response = self.retry_handler.execute(
+            self.session.get,
+            url,
             headers=final_headers,
             params=params,
             timeout=self.timeout
@@ -52,7 +47,7 @@ class APIClient:
         return response
     
     def post(self, path: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, Any]] = None, body: Optional[Dict[str, Any]] = None) -> requests.Response:
-        """Execute POST request."""
+        """Execute POST request with automatic retry."""
         url = f"{self.base_url}/{path.lstrip('/')}"
         final_headers = {**self.headers, **(headers or {})}
 
@@ -64,7 +59,8 @@ class APIClient:
             body=body
         )
 
-        response = self.session.post(
+        response = self.retry_handler.execute(
+            self.session.post,
             url,
             headers=final_headers,
             params=params,
@@ -75,7 +71,7 @@ class APIClient:
         return response
     
     def put(self, path: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, Any]] = None, body: Optional[Dict[str, Any]] = None) -> requests.Response:
-        """Execute PUT request."""
+        """Execute PUT request with automatic retry."""
         url = f"{self.base_url}/{path.lstrip('/')}"
         final_headers = {**self.headers, **(headers or {})}
 
@@ -87,7 +83,8 @@ class APIClient:
             body=body
         )
 
-        response = self.session.put(
+        response = self.retry_handler.execute(
+            self.session.put,
             url,
             headers=final_headers,
             params=params,
@@ -98,7 +95,7 @@ class APIClient:
         return response
     
     def delete(self, path: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, Any]] = None) -> requests.Response:
-        """Execute DELETE request."""
+        """Execute DELETE request with automatic retry."""
         url = f"{self.base_url}/{path.lstrip('/')}"
         final_headers = {**self.headers, **(headers or {})}
 
@@ -109,7 +106,8 @@ class APIClient:
             headers=final_headers,
         )
 
-        response = self.session.delete(
+        response = self.retry_handler.execute(
+            self.session.delete,
             url, 
             headers=final_headers,
             params=params,
